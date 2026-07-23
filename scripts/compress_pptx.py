@@ -26,6 +26,24 @@ import shutil
 import sys
 import zipfile
 
+# Windows 控制台默认 GBK，无法编码 emoji/中文，会让"成功的压缩"因 print 崩溃而退出失败。
+# 统一把 stdout/stderr 切到 UTF-8 且对无法编码的字符降级替换（不崩溃）。
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")  # Py3.7+
+    except (AttributeError, ValueError):
+        pass
+
+
+def _safe_print(text: str) -> None:
+    """在任何终端编码下安全打印（兜底：按当前编码替换不可编码字符）。"""
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        enc = (getattr(sys.stdout, "encoding", None) or "utf-8")
+        sys.stdout.write(text.encode(enc, "replace").decode(enc, "replace") + "\n")
+
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import media as M
 import mediacodecs as C
@@ -297,7 +315,7 @@ def compress(input_pptx: str, out_dir: str, *, analyze_only: bool,
         text = R.render_text(rep, index, analyze_only=True, lang=lang)
         stem = os.path.splitext(os.path.basename(input_pptx))[0]
         R.write_reports(out_dir, stem, rep, text)
-        print(text)
+        _safe_print(text)
         return rep
 
     # ---- 逐媒体压缩 ----
@@ -476,7 +494,7 @@ def compress(input_pptx: str, out_dir: str, *, analyze_only: bool,
 
     text = R.render_text(rep, index, analyze_only=False, lang=lang)
     R.write_reports(out_dir, stem, rep, text)
-    print(text)
+    _safe_print(text)
     return rep
 
 
@@ -492,7 +510,8 @@ def _residual_analysis(rep, index, out_bytes, threshold_mb):
         # 给建议（key，由 report 层按 lang 翻译）
         kind = it.get("kind", "")
         if kind == "video":
-            hint = "hint-video"
+            # 已经是 x264 就别再建议 x264；改建议降分辨率/码率/外链
+            hint = "hint-video-x264" if it.get("action") == "video-h264" else "hint-video"
         elif kind in ("png",):
             hint = "hint-png"
         elif kind in ("jpeg", "jpg"):

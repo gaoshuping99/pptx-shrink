@@ -8,9 +8,10 @@ description: >
   images in a deck / deck too big to email. Downsamples & re-encodes images,
   converts opaque PNG→JPEG, quantizes transparent PNGs, re-encodes embedded
   video/audio, optional font subsetting & crop-pixel discard, strips redundancy.
-  Rewrites only ppt/media via zipfile (XML left intact except a paired
-  Content_Types/rels rename for PNG→JPEG), so output stays a standard editable
-  .pptx. Cross-platform (macOS / Windows / Linux). Bilingual report (en/zh).
+  Media-only mode (--no-clean) leaves XML untouched (except a paired
+  Content_Types/rels rename for PNG→JPEG); the default cleanup mode also edits some
+  slide/master XML to discard cropped pixels and drop unused layouts. Output stays a
+  standard editable .pptx. Cross-platform (macOS / Windows / Linux). Bilingual report (en/zh).
 license: MIT
 ---
 
@@ -49,6 +50,12 @@ python3 scripts/compress_pptx.py <input.pptx>
 - On by default: image downsample (2× retina) + JPEG re-encode, opaque **PNG→JPEG**,
   transparent PNG quantize, video/audio re-encode, and redundancy cleanup
   (crop-pixel discard, drop unused layouts, drop redundant thumbnail).
+- **What gets modified**: media bytes under `ppt/media` are always rewritten.
+  In **default (cleanup) mode**, some XML is also edited — `[Content_Types].xml` and rels
+  (PNG→JPEG rename), slide XML (crop-pixel discard removes `<a:srcRect>`), master XML +
+  rels (drop unused layouts), and `_rels/.rels` (drop thumbnail). Use **`--no-clean`** for
+  media-only compression that leaves XML untouched (bar the PNG→JPEG rename). Either way the
+  output is validated to open correctly before it's written.
 - **Safety**: writes a temp file → validates it opens (zip integrity + OOXML structure
   + no dangling relationship refs, diffed against the original so pre-existing PowerPoint
   quirks don't cause false rollbacks; plus a LibreOffice render pass if available) →

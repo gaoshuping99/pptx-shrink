@@ -7,8 +7,10 @@ size-breakdown report (per page, per element, per byte). Cross-platform
 Compresses images (downsample + re-encode, opaque PNG→JPEG, PNG quantize),
 re-encodes embedded video/audio, optionally subsets fonts and discards cropped
 pixels, and strips redundancy — while keeping the output a standard **editable**
-`.pptx`. Only `ppt/media` bytes are rewritten via `zipfile`; XML is left intact
-(the one exception is a paired `[Content_Types].xml`/rels rename for PNG→JPEG).
+`.pptx`. Media bytes under `ppt/media` are always rewritten. The default cleanup
+mode also edits some slide/master XML (crop-pixel discard, drop unused layouts,
+PNG→JPEG rename in `[Content_Types].xml`/rels); use `--no-clean` for media-only
+compression that leaves XML untouched apart from the PNG→JPEG rename.
 
 ## Install dependencies
 

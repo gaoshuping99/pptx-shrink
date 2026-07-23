@@ -39,7 +39,7 @@ UI = {
         "notes": "Notes:",
         "output": "Output:",
         "count_unit": "",
-        "global": "global", "unref": "unreferenced", "dash": "—",
+        "global": "global", "unref": "page n/a", "dash": "—",
         "masters": "master/layout", "page": "p{n}", "pages_more": " +{n} more",
     },
     "zh": {
@@ -55,7 +55,7 @@ UI = {
         "notes": "提示：",
         "output": "产出：",
         "count_unit": "个",
-        "global": "全局", "unref": "未引用", "dash": "—",
+        "global": "全局", "unref": "未定位到页", "dash": "—",
         "masters": "母版/版式", "page": "第{n}页", "pages_more": " 等{n}页",
     },
 }
@@ -112,6 +112,7 @@ MSG = {
         "post-check|": "Post-compression validation: {0}",
         # residual hints
         "hint-video": "video is the biggest chunk: try --av-codec x264, or external link / shorter clip",
+        "hint-video-x264": "video is the biggest chunk (already H.264): lower resolution/bitrate/fps, or move the video to an external link",
         "hint-png": "large transparent PNG: verify transparency is needed, else convert to JPEG",
         "hint-jpeg": "image still large: lower --jpeg-quality (e.g. 82), or its displayed size is large",
         "hint-vector": "vector image, kept by design",
@@ -144,6 +145,7 @@ MSG = {
         "font-subset-obfuscated|": "字体子集化跳过 {0}：疑似 OOXML 混淆字体。",
         "post-check|": "完成后校验：{0}",
         "hint-video": "视频仍是大头：可 --av-codec x264 或改用外部链接/降低时长分辨率",
+        "hint-video-x264": "视频仍是大头（已是 H.264）：可降低分辨率/码率/帧率，或把视频改为外部链接",
         "hint-png": "透明PNG较大：确认是否真需透明，否则可转JPEG",
         "hint-jpeg": "图片仍大：可下调 --jpeg-quality（如 82）或该图显示尺寸本身很大",
         "hint-vector": "矢量图未压缩（按设计保留）",
@@ -162,21 +164,24 @@ def _t(key: str, lang: str) -> str:
     base = parts[0]
     args = parts[1:]
     tbl = MSG.get(lang, MSG["en"])
+    en = MSG["en"]
     # action 里 resize 是拼接后缀（如 "png-to-jpeg|88|1280"）——特殊处理
     if base in ("jpeg-recompress", "png-to-jpeg") and args:
-        s = tbl.get(base, base).format(args[0])
+        s = (tbl.get(base) or en.get(base, base)).format(args[0])
         if len(args) > 1:
-            s += tbl["resize"].format(args[1])
+            s += (tbl.get("resize") or en["resize"]).format(args[1])
         return s
     if base in ("png-quantize", "font-subset") and args:
-        return tbl.get(base, base) + tbl["resize"].format(args[0])
-    # 带参数的 warning/reason：key 存成 "base|"
-    if args and (base + "|") in tbl:
-        try:
-            return tbl[base + "|"].format(args[0])
-        except Exception:
-            return tbl[base + "|"]
-    return tbl.get(base, MSG["en"].get(base, base))
+        return (tbl.get(base) or en.get(base, base)) + (tbl.get("resize") or en["resize"]).format(args[0])
+    # 通用带参数：模板可能存成 "base|" 或 "base"，取到哪个用哪个，用全部 args 填充
+    if args:
+        tmpl = tbl.get(base + "|") or en.get(base + "|") or tbl.get(base) or en.get(base)
+        if tmpl:
+            try:
+                return tmpl.format(*args)
+            except Exception:
+                return tmpl
+    return tbl.get(base) or en.get(base, base)
 
 
 def _pages_str(entry, lang: str) -> str:

@@ -152,13 +152,15 @@ def _classify_refs(slide_xml: bytes, rid2rel: dict[str, dict]):
             display = (int(ext.group(1)), int(ext.group(2)))
         results.append((rid, elem, display))
 
-    # 2) 视频/音频：<a:videoFile r:link="rIdX"/> / <a:audioFile r:link=...>
-    for m in re.finditer(rb'<a:videoFile\b[^>]*\br:link="([^"]+)"', text):
+    # 2) 视频/音频。PowerPoint 的视频对象引用较杂，需覆盖多种：
+    #    <a:videoFile r:link|r:embed>、<a:audioFile ...>、<p:videoFile ...>、
+    #    以及 <p14:media r:embed> / <*:media r:embed|r:link>（真正的 .../media 关系载体）。
+    for m in re.finditer(rb'<(?:a|p):videoFile\b[^>]*\br:(?:link|embed)="([^"]+)"', text):
         results.append((m.group(1).decode(), "video", None))
-    for m in re.finditer(rb'<a:audioFile\b[^>]*\br:link="([^"]+)"', text):
+    for m in re.finditer(rb'<(?:a|p):audioFile\b[^>]*\br:(?:link|embed)="([^"]+)"', text):
         results.append((m.group(1).decode(), "audio", None))
-    # p14:media / p:videoFile 变体
-    for m in re.finditer(rb'<p:videoFile\b[^>]*\br:link="([^"]+)"', text):
+    # p14:media / a14:media / 任意前缀 :media —— 载 .../media 关系的 r:embed(或 r:link)
+    for m in re.finditer(rb'<[a-z0-9]+:media\b[^>]*\br:(?:embed|link)="([^"]+)"', text):
         results.append((m.group(1).decode(), "video", None))
 
     return results

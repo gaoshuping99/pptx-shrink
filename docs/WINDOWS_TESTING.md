@@ -138,11 +138,26 @@ Run step 2 twice on the same input.
 
 ## 9. Paths with spaces / 含空格路径
 
-Windows decks often live under paths with spaces. Test one:
+Windows decks often live under paths with spaces. **Direct invocation** (quote the
+whole path) works reliably:
 
 ```powershell
 python scripts\compress_pptx.py "C:\Users\<you>\OneDrive - Company\My Deck (final).pptx"
 ```
+
+**Do NOT** pass a spaced path through `Start-Process -ArgumentList` as a bare string —
+PowerShell splits it on spaces and the script receives extra args
+(`error: unrecognized arguments: ...`). If you must use `Start-Process`, pass an
+**array** with the path as its own element:
+
+```powershell
+Start-Process -FilePath python -ArgumentList @(
+  "scripts\compress_pptx.py",
+  "C:\Users\<you>\OneDrive - Company\My Deck (final).pptx"
+) -NoNewWindow -Wait
+```
+
+Or simplest — `cd` into the deck's folder and pass just the filename in quotes.
 
 **Expected / 预期**: works; output lands beside the input; no path-parsing error.
 
