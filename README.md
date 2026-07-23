@@ -55,6 +55,12 @@ relationship references — diffed against the original so pre-existing quirks d
 trip it, plus a LibreOffice render pass when available), and only then commits.
 If validation fails, the temp is discarded and the original is untouched.
 
+## Platform status
+
+Developed and validated on macOS. Cross-platform by design (paths, subprocess,
+codec selection). Windows verification is pending — see
+[`docs/WINDOWS_TESTING.md`](docs/WINDOWS_TESTING.md) for the acceptance checklist.
+
 ## License
 
 MIT — see `LICENSE`.
