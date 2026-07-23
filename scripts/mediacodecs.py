@@ -217,13 +217,16 @@ def ffprobe_info(path: str) -> dict:
         return {}
 
 
-def optimize_video(data: bytes, ext: str, av_codec: str = "auto"):
+def optimize_video(data: bytes, ext: str, av_codec: str = "auto",
+                   crf: int = 23, max_width: int = 1920, max_height: int = 1080,
+                   fps: float | None = None):
     """同容器重编码 mp4/mov→同扩展名。返回 (bytes, action_key, reason_key)。
 
     av_codec:
       "auto"  — macOS 用 hevc_videotoolbox（硬件、快），其它平台用 libx264。
       "hevc"  — 强制 hevc_videotoolbox（仅 macOS 有意义）。
       "x264"  — 强制 libx264（全平台）。
+    crf/max_width/max_height/fps — 可选覆盖；默认= 视觉无损档（CRF23 / ≤1080p / 保持帧率）。
     """
     # 解析实际使用的编码器
     if av_codec == "auto":
@@ -234,14 +237,19 @@ def optimize_video(data: bytes, ext: str, av_codec: str = "auto"):
     src = _write_tmp(data, f".{ext}")
     out = _tmp(f".{ext}")
     try:
-        vf = "scale='min(1920,iw)':-2"
+        # 缩放：不超过 max_width×max_height，且绝不放大；-2 保持偶数尺寸
+        vf = (f"scale='min({int(max_width)},iw)':'min({int(max_height)},ih)'"
+              f":force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2")
+        fps_cmd = ["-r", str(fps)] if fps else []
         if use_hevc:
-            vcmd = ["-c:v", "hevc_videotoolbox", "-q:v", "60", "-tag:v", "hvc1"]
+            # videotoolbox 用 q:v（无 crf）；把 crf 粗略映射到 q:v（crf 越大质量越低）
+            qv = max(1, min(100, 100 - int(crf) * 2))
+            vcmd = ["-c:v", "hevc_videotoolbox", "-q:v", str(qv), "-tag:v", "hvc1"]
             act = "video-hevc"
         else:
-            vcmd = ["-c:v", "libx264", "-crf", "23", "-preset", "medium"]
+            vcmd = ["-c:v", "libx264", "-crf", str(int(crf)), "-preset", "medium"]
             act = "video-h264"
-        rc, _, err = _run(["ffmpeg", "-y", "-i", src, "-vf", vf, *vcmd,
+        rc, _, err = _run(["ffmpeg", "-y", "-i", src, "-vf", vf, *fps_cmd, *vcmd,
                            "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", out],
                           timeout=1800)
         cand = _read(out) if rc == 0 else None
@@ -249,7 +257,8 @@ def optimize_video(data: bytes, ext: str, av_codec: str = "auto"):
             return cand, act, ""
         # HEVC 失败或更大 → 回退 x264（仅当刚才试的是 hevc）
         if use_hevc:
-            return optimize_video(data, ext, av_codec="x264")
+            return optimize_video(data, ext, av_codec="x264", crf=crf,
+                                  max_width=max_width, max_height=max_height, fps=fps)
         return None, "", "not-smaller"
     finally:
         for p in (src, out):
@@ -257,15 +266,15 @@ def optimize_video(data: bytes, ext: str, av_codec: str = "auto"):
                 os.unlink(p)
 
 
-def optimize_audio(data: bytes, ext: str):
-    """同容器：mp3/m4a/aac 重编码到 128k；wav 不装 aac → 跳过。"""
+def optimize_audio(data: bytes, ext: str, bitrate: str = "128k"):
+    """同容器：mp3/m4a/aac 重编码到指定码率；wav 不装 aac → 跳过。"""
     if ext == "wav":
         return None, "", "wav-same-container"
     src = _write_tmp(data, f".{ext}")
     out = _tmp(f".{ext}")
     try:
         codec = "aac" if ext in ("m4a", "aac") else "libmp3lame"
-        rc, _, _ = _run(["ffmpeg", "-y", "-i", src, "-c:a", codec, "-b:a", "128k", out])
+        rc, _, _ = _run(["ffmpeg", "-y", "-i", src, "-c:a", codec, "-b:a", str(bitrate), out])
         cand = _read(out) if rc == 0 else None
         if cand and len(cand) < len(data):
             return cand, "audio-recompress", ""

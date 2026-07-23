@@ -111,6 +111,7 @@ MSG = {
         "font-subset-obfuscated|": "Font subset skipped for {0}: looks OOXML-obfuscated.",
         "post-check|": "Post-compression validation: {0}",
         "idempotent-skip|": "{0} media already compressed by a previous run (skipped, no re-encode).",
+        "suggest-cmd": "To shrink further (mostly video), try:",
         # residual hints
         "hint-video": "video is the biggest chunk: try --av-codec x264, or external link / shorter clip",
         "hint-video-x264": "video is the biggest chunk (already H.264): lower resolution/bitrate/fps, or move the video to an external link",
@@ -146,6 +147,7 @@ MSG = {
         "font-subset-obfuscated|": "字体子集化跳过 {0}：疑似 OOXML 混淆字体。",
         "post-check|": "完成后校验：{0}",
         "idempotent-skip|": "{0} 个媒体上次已压缩过（本次跳过、不重编码）。",
+        "suggest-cmd": "如需更小（主要压视频），可试：",
         "hint-video": "视频仍是大头：可 --av-codec x264 或改用外部链接/降低时长分辨率",
         "hint-video-x264": "视频仍是大头（已是 H.264）：可降低分辨率/码率/帧率，或把视频改为外部链接",
         "hint-png": "透明PNG较大：确认是否真需透明，否则可转JPEG",
@@ -343,6 +345,9 @@ def render_text(report: dict, index: dict, analyze_only: bool = False, lang: str
             base = r["media"].split("/")[-1]
             L.append(f"  {j}. {loc} · {base}  {_fmt(r['bytes'])}"
                      f" ({u['pct_of_file']} {r['pct_of_file']}%) — {_t(r['hint'], lang)}")
+        if sl.get("suggest_cmd"):
+            L.append(_t("suggest-cmd", lang))
+            L.append(f"  {sl['suggest_cmd']}")
         L.append("")
 
     if report["warnings"]:

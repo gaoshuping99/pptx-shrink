@@ -79,9 +79,17 @@ python3 scripts/compress_pptx.py <input.pptx> --analyze-only
 | `--no-crop` / `--no-drop-layouts` / `--no-strip-fast-save` | (on) | disable a cleanup |
 | `--no-clean` | off | disable all cleanup (media compression only) |
 | `--jpeg-quality N` | 88 | JPEG quality (85–90 = visually lossless) |
+| `--video-crf N` | 23 | video CRF; higher = smaller/lower quality (try 28 for smaller) |
+| `--video-max-width N` / `--video-max-height N` | 1920 / 1080 | cap video resolution (never upscales) |
+| `--video-fps F` | (keep) | cap video frame rate |
+| `--audio-bitrate B` | 128k | audio bitrate |
 | `--retina F` | 2.0 | pixel headroom kept when downsampling |
 | `--min-save-kb N` | 64 | min saving per file to accept |
 | `--still-large-mb N` | 10 | threshold for the residual breakdown |
+
+Video/audio params are **optional overrides** — the one-shot command uses visually-lossless
+defaults and never prompts. When video dominates the residual, the report prints a ready-to-copy
+command (e.g. `--video-crf 28 --video-max-width 1280`) to shrink it further.
 
 ## Notes / caveats
 - `--subset-fonts` locks text editing (new chars → tofu); default off.

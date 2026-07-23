@@ -277,7 +277,10 @@ def compress(input_pptx: str, out_dir: str, *, analyze_only: bool,
              repack_formats: bool, subset_fonts: bool, apply_crop: bool,
              drop_unused_layouts: bool, strip_fast_save: bool,
              av_codec: str, jpeg_quality: int, retina: float, min_save_kb: int,
-             still_large_mb: float = 10.0, lang: str = "en") -> dict:
+             still_large_mb: float = 10.0, lang: str = "en",
+             video_crf: int = 23, video_max_width: int = 1920,
+             video_max_height: int = 1080, video_fps: float | None = None,
+             audio_bitrate: str = "128k") -> dict:
     if _is_encrypted(input_pptx):
         raise SystemExit("Error: encrypted PPTX is not supported. "
                          "Please remove the password in PowerPoint first. "
@@ -358,9 +361,11 @@ def compress(input_pptx: str, out_dir: str, *, analyze_only: bool,
         elif ext in C.VECTOR_EXTS:
             reason = "vector-kept"
         elif ext in C.VIDEO_EXTS and ext in ("mp4", "mov", "m4v"):
-            new_bytes, action, reason = C.optimize_video(data, ext, av_codec)
+            new_bytes, action, reason = C.optimize_video(
+                data, ext, av_codec, crf=video_crf, max_width=video_max_width,
+                max_height=video_max_height, fps=video_fps)
         elif ext in C.AUDIO_EXTS:
-            new_bytes, action, reason = C.optimize_audio(data, ext)
+            new_bytes, action, reason = C.optimize_audio(data, ext, bitrate=audio_bitrate)
         else:
             reason = f"unknown-type|{ext}"
 
@@ -502,7 +507,7 @@ def compress(input_pptx: str, out_dir: str, *, analyze_only: bool,
     # ---- 压缩后仍很大 → 自动触发残余大头详细分析 ----
     rep["still_large"] = None
     if out_bytes > still_large_mb * 1024 * 1024:
-        rep["still_large"] = _residual_analysis(rep, index, out_bytes, still_large_mb)
+        rep["still_large"] = _residual_analysis(rep, index, out_bytes, still_large_mb, input_pptx)
 
     text = R.render_text(rep, index, analyze_only=False, lang=lang)
     R.write_reports(out_dir, stem, rep, text)
@@ -510,9 +515,11 @@ def compress(input_pptx: str, out_dir: str, *, analyze_only: bool,
     return rep
 
 
-def _residual_analysis(rep, index, out_bytes, threshold_mb):
-    """压缩后仍超阈值时，产出残余大头的详细定位（页+元素+体积+建议）。"""
+def _residual_analysis(rep, index, out_bytes, threshold_mb, input_pptx=None):
+    """压缩后仍超阈值时，产出残余大头的详细定位（页+元素+体积+建议）。
+    若视频占比大，附一条可直接复制的进阶命令（用户不懂参数也能照用）。"""
     residual = []
+    video_bytes = 0
     for it in rep["top_items"]:
         cur = it["new"] if it["accepted"] else it["orig"]
         if cur <= 0:
@@ -522,6 +529,7 @@ def _residual_analysis(rep, index, out_bytes, threshold_mb):
         # 给建议（key，由 report 层按 lang 翻译）
         kind = it.get("kind", "")
         if kind == "video":
+            video_bytes += cur
             # 已经是 x264 就别再建议 x264；改建议降分辨率/码率/外链
             hint = "hint-video-x264" if it.get("action") == "video-h264" else "hint-video"
         elif kind in ("png",):
@@ -537,8 +545,15 @@ def _residual_analysis(rep, index, out_bytes, threshold_mb):
             "bytes": cur, "pct_of_file": round(cur / out_bytes * 100, 1),
             "hint": hint,
         })
-    return {"threshold_mb": threshold_mb, "output_bytes": out_bytes,
-            "items": residual[:10]}
+    result = {"threshold_mb": threshold_mb, "output_bytes": out_bytes,
+              "items": residual[:10]}
+    # 视频占残余体积 >50% → 给一条更激进重压视频的可复制命令
+    if input_pptx and out_bytes and video_bytes / out_bytes > 0.5:
+        base = os.path.basename(input_pptx)
+        result["suggest_cmd"] = (
+            f'python3 compress_pptx.py "{base}" '
+            f'--video-crf 28 --video-max-width 1280')
+    return result
 
 
 
@@ -615,6 +630,13 @@ def main():
     ap.add_argument("--jpeg-quality", type=int, default=88)
     ap.add_argument("--retina", type=float, default=2.0)
     ap.add_argument("--min-save-kb", type=int, default=64)
+    # 视频/音频可选覆盖（默认=视觉无损档；不传则一键自动，不打扰用户）
+    ap.add_argument("--video-crf", type=int, default=23,
+                    help="视频 CRF，越大越小越糊(默认23视觉无损; 想更小可试 28)")
+    ap.add_argument("--video-max-width", type=int, default=1920, help="视频最大宽(默认1920)")
+    ap.add_argument("--video-max-height", type=int, default=1080, help="视频最大高(默认1080)")
+    ap.add_argument("--video-fps", type=float, default=None, help="视频帧率上限(默认保持原帧率)")
+    ap.add_argument("--audio-bitrate", default="128k", help="音频码率(默认128k)")
     ap.add_argument("--still-large-mb", type=float, default=10.0,
                     help="压缩后超过此体积(MB)则附残余大头详细分析(默认10)")
     ap.add_argument("--lang", choices=["en", "zh"], default="en",
@@ -642,7 +664,12 @@ def main():
              retina=args.retina,
              min_save_kb=args.min_save_kb,
              still_large_mb=args.still_large_mb,
-             lang=args.lang)
+             lang=args.lang,
+             video_crf=args.video_crf,
+             video_max_width=args.video_max_width,
+             video_max_height=args.video_max_height,
+             video_fps=args.video_fps,
+             audio_bitrate=args.audio_bitrate)
 
 
 if __name__ == "__main__":
