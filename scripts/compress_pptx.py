@@ -363,7 +363,7 @@ def compress(input_pptx: str, out_dir: str, *, analyze_only: bool,
         elif ext in C.VIDEO_EXTS and ext in ("mp4", "mov", "m4v"):
             new_bytes, action, reason = C.optimize_video(
                 data, ext, av_codec, crf=video_crf, max_width=video_max_width,
-                max_height=video_max_height, fps=video_fps)
+                max_height=video_max_height, fps=video_fps, audio_bitrate=audio_bitrate)
         elif ext in C.AUDIO_EXTS:
             new_bytes, action, reason = C.optimize_audio(data, ext, bitrate=audio_bitrate)
         else:
@@ -644,6 +644,21 @@ def main():
     args = ap.parse_args()
 
     check_deps()  # 硬依赖校验，缺则报错退出
+
+    # 参数范围校验（快速失败，避免跑完大文件才发现参数无效）
+    errs = []
+    if not (0 <= args.video_crf <= 51):
+        errs.append("--video-crf must be 0–51")
+    if args.video_max_width <= 0 or args.video_max_height <= 0:
+        errs.append("--video-max-width/--video-max-height must be positive")
+    if args.video_fps is not None and args.video_fps <= 0:
+        errs.append("--video-fps must be > 0")
+    if not re.fullmatch(r"\d+k?", args.audio_bitrate):
+        errs.append("--audio-bitrate must look like 96k / 128k / 192000")
+    if not (1 <= args.jpeg_quality <= 100):
+        errs.append("--jpeg-quality must be 1–100")
+    if errs:
+        raise SystemExit("Error: invalid arguments / 参数无效:\n  " + "\n  ".join(errs))
 
     if not os.path.isfile(args.input):
         raise SystemExit(f"Error: file not found: {args.input}")

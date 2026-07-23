@@ -219,14 +219,15 @@ def ffprobe_info(path: str) -> dict:
 
 def optimize_video(data: bytes, ext: str, av_codec: str = "auto",
                    crf: int = 23, max_width: int = 1920, max_height: int = 1080,
-                   fps: float | None = None):
+                   fps: float | None = None, audio_bitrate: str = "128k"):
     """同容器重编码 mp4/mov→同扩展名。返回 (bytes, action_key, reason_key)。
 
     av_codec:
       "auto"  — macOS 用 hevc_videotoolbox（硬件、快），其它平台用 libx264。
       "hevc"  — 强制 hevc_videotoolbox（仅 macOS 有意义）。
       "x264"  — 强制 libx264（全平台）。
-    crf/max_width/max_height/fps — 可选覆盖；默认= 视觉无损档（CRF23 / ≤1080p / 保持帧率）。
+    crf/max_width/max_height/fps/audio_bitrate — 可选覆盖；默认= 视觉无损档
+    （CRF23 / ≤1080p / 保持帧率 / 音轨 128k）。
     """
     # 解析实际使用的编码器
     if av_codec == "auto":
@@ -250,7 +251,8 @@ def optimize_video(data: bytes, ext: str, av_codec: str = "auto",
             vcmd = ["-c:v", "libx264", "-crf", str(int(crf)), "-preset", "medium"]
             act = "video-h264"
         rc, _, err = _run(["ffmpeg", "-y", "-i", src, "-vf", vf, *fps_cmd, *vcmd,
-                           "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", out],
+                           "-c:a", "aac", "-b:a", str(audio_bitrate),
+                           "-movflags", "+faststart", out],
                           timeout=1800)
         cand = _read(out) if rc == 0 else None
         if cand and len(cand) < len(data):
@@ -258,7 +260,8 @@ def optimize_video(data: bytes, ext: str, av_codec: str = "auto",
         # HEVC 失败或更大 → 回退 x264（仅当刚才试的是 hevc）
         if use_hevc:
             return optimize_video(data, ext, av_codec="x264", crf=crf,
-                                  max_width=max_width, max_height=max_height, fps=fps)
+                                  max_width=max_width, max_height=max_height,
+                                  fps=fps, audio_bitrate=audio_bitrate)
         return None, "", "not-smaller"
     finally:
         for p in (src, out):
