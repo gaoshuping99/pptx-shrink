@@ -76,20 +76,28 @@ def check_deps() -> None:
         return
 
     sysname = platform.system()
-    mgr = {"Darwin": ("brew", "brew install"),
-           "Windows": ("choco", "choco install  (or: winget install)"),
-           "Linux": ("apt", "sudo apt install")}.get(sysname, ("apt", "install"))
-    key, install_cmd = mgr
-
     lines = ["Error: missing required dependencies; pptx-shrink cannot run.",
              "错误：缺少必需依赖工具，无法运行。", ""]
     if missing:
-        pkgs = sorted({REQUIRED_TOOLS[t][key] for t in missing})
         lines.append(f"Missing CLI tools / 缺少工具: {', '.join(missing)}")
-        lines.append(f"  Install ({sysname}): {install_cmd} {' '.join(pkgs)}")
+        if sysname == "Windows":
+            # choco 与 winget 包名不同，分两行各自可直接复制执行
+            choco_pkgs = sorted({REQUIRED_TOOLS[t]["choco"] for t in missing})
+            winget_map = {"ffmpeg": "Gyan.FFmpeg", "imagemagick": "ImageMagick.ImageMagick",
+                          "pngquant": "pngquant.pngquant"}
+            winget_pkgs = sorted({winget_map.get(REQUIRED_TOOLS[t]["choco"],
+                                                  REQUIRED_TOOLS[t]["choco"]) for t in missing})
+            lines.append(f"  choco:  choco install {' '.join(choco_pkgs)}")
+            lines.append(f"  winget: winget install {' '.join(winget_pkgs)}")
+        elif sysname == "Darwin":
+            pkgs = sorted({REQUIRED_TOOLS[t]["brew"] for t in missing})
+            lines.append(f"  brew install {' '.join(pkgs)}")
+        else:
+            pkgs = sorted({REQUIRED_TOOLS[t]["apt"] for t in missing})
+            lines.append(f"  sudo apt install {' '.join(pkgs)}")
     if pil_missing:
         lines.append("Missing Python lib Pillow / 缺少 Pillow")
-        lines.append("  Install: pip install Pillow")
+        lines.append("  pip install Pillow")
     lines += ["",
               "Optional (missing only disables that feature) / 可选增强：",
               "  jpegtran  (JPEG lossless; magick used as fallback)",
@@ -474,6 +482,10 @@ def compress(input_pptx: str, out_dir: str, *, analyze_only: bool,
         os.remove(out_pptx)
     os.replace(tmp_pptx, out_pptx)
     warnings.append(f"post-check|{detail}")
+    # 幂等命中提示：若有 media 因 sha 命中上次标记而跳过，明确告知（消除"第二次仍报同样节省"的困惑）
+    _skipped = sum(1 for r in results if r.get("reason") == "already-compressed")
+    if _skipped:
+        warnings.append(f"idempotent-skip|{_skipped}")
 
     # 写幂等标记 sidecar（在包外，不影响 pptx 结构）
     try:

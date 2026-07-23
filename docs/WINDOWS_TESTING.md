@@ -129,35 +129,47 @@ python scripts\compress_pptx.py deck.pptx --analyze-only
 
 ## 8. Idempotency / 幂等
 
-Run step 2 twice on the same input.
+Run step 2 twice on the **same input** file, keeping a copy of the first output.
 
-**Expected / 预期**: second run saves ~0% (media already processed, skipped via the
-`.pptxshrink.json` sidecar). No degradation, no error.
+**Expected / 预期**: the two outputs are **byte-for-byte identical** (compare SHA-256) —
+no second-pass lossy degradation. This is the guarantee that matters.
+
+Notes / 说明:
+- The reported "saved %" is always **relative to the original input**, so the second run
+  still shows the same percentage (e.g. 87.5%) — that is expected, not a bug.
+- The second run is **not** currently faster: the sidecar records per-media SHA-256 to
+  prevent re-compressing *already-compressed media*, but because cross-format renames
+  (PNG→JPEG) change media names, re-running on the original input generally re-encodes.
+  Byte-identical output is guaranteed; wall-clock caching is a known future optimization.
 
 ---
 
 ## 9. Paths with spaces / 含空格路径
 
 Windows decks often live under paths with spaces. **Direct invocation** (quote the
-whole path) works reliably:
+whole path) works reliably in cmd, PowerShell 5.1 and PowerShell 7:
 
 ```powershell
-python scripts\compress_pptx.py "C:\Users\<you>\OneDrive - Company\My Deck (final).pptx"
+python "scripts\compress_pptx.py" "C:\Users\<you>\OneDrive - Company\My Deck (final).pptx"
 ```
 
-**Do NOT** pass a spaced path through `Start-Process -ArgumentList` as a bare string —
-PowerShell splits it on spaces and the script receives extra args
-(`error: unrecognized arguments: ...`). If you must use `Start-Process`, pass an
-**array** with the path as its own element:
+If you script it in PowerShell, use the **call operator `&`** (simplest, works in 5.1 & 7):
 
 ```powershell
-Start-Process -FilePath python -ArgumentList @(
-  "scripts\compress_pptx.py",
-  "C:\Users\<you>\OneDrive - Company\My Deck (final).pptx"
-) -NoNewWindow -Wait
+& python "scripts\compress_pptx.py" "C:\Users\<you>\OneDrive - Company\My Deck (final).pptx"
 ```
 
-Or simplest — `cd` into the deck's folder and pass just the filename in quotes.
+**Avoid `Start-Process -ArgumentList @(...)`** for spaced paths — Windows PowerShell 5.1
+re-joins the array into one command line and re-splits on spaces, so the script receives
+extra args (`error: unrecognized arguments: ...`). If you truly need `Start-Process`, pass a
+single pre-quoted argument string:
+
+```powershell
+$args = '"scripts\compress_pptx.py" "C:\Users\<you>\OneDrive - Company\My Deck (final).pptx"'
+Start-Process -FilePath python -ArgumentList $args -NoNewWindow -Wait
+```
+
+Or simplest — `cd` into the deck's folder and pass just the quoted filename.
 
 **Expected / 预期**: works; output lands beside the input; no path-parsing error.
 
