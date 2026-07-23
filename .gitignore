@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.compressed.pptx
+*.report.json
+*.report.txt
+.*.pptxshrink.json
+.DS_Store

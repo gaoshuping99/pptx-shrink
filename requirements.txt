@@ -1,0 +1,5 @@
+# pptx-shrink Python dependencies
+# Hard requirement:
+Pillow>=9.0
+# Optional (only for --subset-fonts):
+# fonttools>=4.0
