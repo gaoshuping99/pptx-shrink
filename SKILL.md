@@ -18,8 +18,9 @@ license: MIT
 # pptx-shrink — visually-lossless maximum PPTX compression
 
 Compress a .pptx to the smallest size a human can't tell apart, and report where
-the size comes from (**page + element + bytes**). Architecture follows NXPowerLite
-(per-media re-encode, stays editable); the size report follows iSlide's file analysis.
+the size comes from (**page + element + bytes**). It re-encodes each embedded media
+part in place (so the deck stays editable) and produces a per-page / per-element
+size breakdown.
 
 ## When to use
 When the user says: compress/shrink PPT, PPT too big, deck too large to send,

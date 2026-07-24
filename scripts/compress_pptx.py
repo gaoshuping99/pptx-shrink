@@ -392,14 +392,14 @@ def compress(input_pptx: str, out_dir: str, *, analyze_only: bool,
     if subset_fonts:
         _do_font_subset(raw, optimized, results, warnings)
 
-    # ---- iSlide 式冗余清理（可选，破坏性，改 XML）----
+    # ---- 冗余清理（可选，破坏性，改 XML）----
     xml_overrides: dict[str, bytes] = {}
     drops: set[str] = set()
     if apply_crop:
         CL.apply_crop(raw, index, optimized, xml_overrides, results, warnings)
     if drop_unused_layouts:
         CL.drop_unused_layouts(raw, drops, xml_overrides, results, warnings)
-    # 注：曾有 drop_hidden（删隐藏/画布外对象），因会误删 think-cell 等插件的
+    # 注：曾有 drop_hidden（删隐藏/画布外对象），因会误删某些插件的
     # hidden 数据对象导致 PowerPoint 报损坏，已移除（体积收益极小、风险极高）。
     if strip_fast_save:
         CL.strip_fast_save(raw, drops, xml_overrides, results, warnings)

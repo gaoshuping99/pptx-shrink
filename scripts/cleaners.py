@@ -1,4 +1,4 @@
-"""cleaners.py — iSlide 式冗余清理（会改 slide/master XML，字节级最小改动）。
+"""cleaners.py — 冗余清理（会改 slide/master XML，字节级最小改动）。
 
 四项，全部默认关闭、破坏性、报告标注：
 - apply_crop           : 裁剪像素丢弃（Pillow crop 源图 + 删该 slide 的 <a:srcRect/>）
@@ -198,7 +198,7 @@ def drop_unused_layouts(raw, drops, xml_overrides, results, warnings):
 
 
 # ---------------- （已移除）删隐藏/画布外对象 ----------------
-# 该功能会误删插件（如 think-cell）的 hidden 数据对象（常命名为 "do not delete"），
+# 该功能会误删某些插件的 hidden 数据对象（常命名为 "do not delete"），
 # 导致 PowerPoint 报"内容有问题"。hidden="1" 不代表可删，风险高、体积收益极小，故移除。
 
 
